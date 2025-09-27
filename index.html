@@ -48,35 +48,6 @@
             border-radius: 0.75rem;
             box-shadow: 0 0 30px rgba(56, 189, 248, 0.2);
         }
-        #mobileControls {
-            display: none;
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            padding: 0 20px;
-            box-sizing: border-box;
-            z-index: 30;
-        }
-        @media (max-width: 768px) {
-            #mobileControls {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-        }
-        .mobile-btn {
-            width: 80px;
-            height: 80px;
-            background-color: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(4px);
-            color: white;
-            border: 2px solid rgba(56, 189, 248, 0.4);
-            border-radius: 50%;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
         .level-select-btn {
             width: 80px;
             height: 80px;
@@ -158,13 +129,7 @@
             </div>
 
             <div id="countdownDisplay" class="absolute inset-0 flex items-center justify-center text-9xl text-white font-bold z-30 hidden" style="text-shadow: 4px 4px 8px rgba(0,0,0,0.6);"></div>
-
-            <div id="mobileControls">
-                <button id="leftButton" class="mobile-btn">&#9664;</button>
-                <button id="jumpButton" class="mobile-btn">&#9650;</button>
-                <button id="rightButton" class="mobile-btn">&#9654;</button>
-            </div>
-
+            
         </div>
     </div>
 
@@ -192,19 +157,16 @@
         const restartButton = document.getElementById('restartButton');
         const nextLevelButton = document.getElementById('nextLevelButton');
         const gameOverMessage = document.getElementById('gameOverMessage');
-        const leftButton = document.getElementById('leftButton');
-        const rightButton = document.getElementById('rightButton');
-        const jumpButton = document.getElementById('jumpButton');
 
         let isPaused = false;
         let isGameOver = false;
         let isCountingDown = false;
         let animationFrameId;
+        let lastTime = 0;
         let gameOverReason = "";
         let currentLevel = 1;
         const maxLevels = 5;
 
-        let gravity = 0.5;
         let groundHeight = 50;
         let worldWidth = 5000;
 
@@ -219,55 +181,45 @@
                     levelConfig = {
                         worldWidth: 5000,
                         shooterPositions: [600, 1200, 1800, 2800, 3300, 4000, 4400],
-                        startFireRate: 120,
-                        endFireRate: 80,
-                        bulletSpeed: 8,
-                        bombSpawnRate: 200,
-                        bombSpeed: 5
+                        startFireRate: 2.0, endFireRate: 1.33,
+                        bulletSpeed: 450,
+                        bombSpawnRate: 3.33, bombSpeed: 300
                     };
                     break;
                 case 2:
                     levelConfig = {
                         worldWidth: 6000,
                         shooterPositions: [500, 900, 1300, 1800, 2400, 3000, 3600, 4200, 5000, 5500],
-                        startFireRate: 95,
-                        endFireRate: 50,
-                        bulletSpeed: 9,
-                        bombSpawnRate: 140,
-                        bombSpeed: 6
+                        startFireRate: 1.58, endFireRate: 0.83,
+                        bulletSpeed: 540,
+                        bombSpawnRate: 2.33, bombSpeed: 360
                     };
                     break;
                 case 3:
                     levelConfig = {
                         worldWidth: 7500,
                         shooterPositions: [400, 700, 1000, 1400, 1800, 2300, 2800, 3300, 3900, 4500, 5200, 6000, 6500, 7000],
-                        startFireRate: 90,
-                        endFireRate: 32,
-                        bulletSpeed: 10,
-                        bombSpawnRate: 100,
-                        bombSpeed: 7
+                        startFireRate: 1.5, endFireRate: 0.53,
+                        bulletSpeed: 600,
+                        bombSpawnRate: 1.66, bombSpeed: 420
                     };
                     break;
                 case 4:
                     levelConfig = {
                         worldWidth: 9000,
                         shooterPositions: [400, 650, 900, 1200, 1500, 1900, 2400, 2900, 3500, 4100, 4800, 5500, 6200, 6800, 7400, 8000, 8500],
-                        startFireRate: 80,
-                        endFireRate: 25,
-                        bulletSpeed: 11.5,
-                        bombSpawnRate: 75,
-                        bombSpeed: 8.5
+                        startFireRate: 1.33, endFireRate: 0.42,
+                        bulletSpeed: 690,
+                        bombSpawnRate: 1.25, bombSpeed: 510
                     };
                     break;
                 case 5:
                     levelConfig = {
                         worldWidth: 12000,
                         shooterPositions: [300, 500, 700, 950, 1200, 1500, 1800, 2200, 2600, 3100, 3600, 4200, 4800, 5500, 6200, 7000, 7800, 8500, 9200, 10000, 11000],
-                        startFireRate: 70,
-                        endFireRate: 15,
-                        bulletSpeed: 14,
-                        bombSpawnRate: 45,
-                        bombSpeed: 10
+                        startFireRate: 1.16, endFireRate: 0.25,
+                        bulletSpeed: 840,
+                        bombSpawnRate: 0.75, bombSpeed: 600
                     };
                     break;
             }
@@ -279,10 +231,11 @@
                 y: canvas.height - groundHeight,
                 width: 40,
                 height: 60,
-                speed: 6,
+                speed: 360, // pixels per second
                 dx: 0,
                 dy: 0,
-                jumpStrength: 15,
+                jumpStrength: 800, // pixels per second
+                gravity: 2500, // pixels per second squared
                 isJumping: false,
                 hp: 100,
                 color: '#facc15',
@@ -294,27 +247,20 @@
                 lastX: 50
             };
 
-            camera = {
-                x: 0,
-                y: 0,
-                width: canvas.width,
-                height: canvas.height,
-            };
+            camera = { x: 0, y: 0, width: canvas.width, height: canvas.height };
 
             const startPos = levelConfig.shooterPositions[0];
             const endPos = levelConfig.shooterPositions[levelConfig.shooterPositions.length - 1];
 
             shooters = levelConfig.shooterPositions.map(posX => {
                 const positionRatio = (posX - startPos) / (endPos - startPos);
-                const fireRate = levelConfig.startFireRate - positionRatio * (levelConfig.startFireRate - levelConfig.endFireRate);
+                const fireRate = 1 / (levelConfig.startFireRate - positionRatio * (levelConfig.startFireRate - levelConfig.endFireRate)); // shots per second
                 return {
                     x: posX,
                     y: canvas.height - groundHeight,
-                    width: 50,
-                    height: 40,
-                    color: '#be123c',
-                    fireCooldown: 0,
-                    fireRate: Math.round(fireRate),
+                    width: 50, height: 40, color: '#be123c',
+                    fireCooldown: 1 / fireRate,
+                    fireRate: 1/ fireRate,
                     bulletSpeed: levelConfig.bulletSpeed
                 };
             });
@@ -341,11 +287,7 @@
             document.getElementById('powerupIndicator').classList.add('hidden');
         }
 
-        const keys = {
-            right: false,
-            left: false,
-            up: false
-        };
+        const keys = { right: false, left: false, up: false };
 
         function handleKeyDown(e) {
             if (isCountingDown) return;
@@ -367,26 +309,27 @@
             if (e.code === 'ArrowLeft') keys.left = false;
         }
 
-        function updatePlayer() {
+        function updatePlayer(deltaTime) {
             if (Math.abs(player.x - player.lastX) < 0.1 && !player.isJumping) {
-                player.idleTimer++;
+                player.idleTimer += deltaTime;
             } else {
                 player.idleTimer = 0;
             }
             player.lastX = player.x;
 
-            if (player.idleTimer > 60 && player.idleTimer % 60 === 1) {
+            if (player.idleTimer > 1) {
                 takeDamage(20);
+                player.idleTimer = 0;
             }
-            if (player.idleTimer > 60 && player.idleTimer % 5 === 0) {
+            if (player.idleTimer > 1 && Math.floor(Date.now() / 100) % 2 === 0) {
                  createFireEffect(player.x + player.width / 2, player.y + player.height);
             }
 
-            if (keys.right) player.x += player.speed;
-            if (keys.left) player.x -= player.speed;
+            if (keys.right) player.x += player.speed * deltaTime;
+            if (keys.left) player.x -= player.speed * deltaTime;
             
-            player.dy += gravity;
-            player.y += player.dy;
+            player.dy += player.gravity * deltaTime;
+            player.y += player.dy * deltaTime;
 
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > worldWidth) {
@@ -400,21 +343,19 @@
             }
             
             if(player.invincible) {
-                player.invincibilityTimer--;
+                player.invincibilityTimer -= deltaTime;
                 if(player.invincibilityTimer <= 0) {
                     player.invincible = false;
                 }
             }
         }
         
-        function updateBombs() {
-            bombSpawner.cooldown--;
+        function updateBombs(deltaTime) {
+            bombSpawner.cooldown -= deltaTime;
             if (bombSpawner.cooldown <= 0) {
                 bombs.push({
                     x: camera.x + Math.random() * canvas.width,
-                    y: -20,
-                    width: 20,
-                    height: 20,
+                    y: -20, width: 20, height: 20,
                     speed: bombSpawner.speed,
                     color: '#1f2937'
                 });
@@ -423,7 +364,7 @@
 
             for (let i = bombs.length - 1; i >= 0; i--) {
                 const bomb = bombs[i];
-                bomb.y += bomb.speed;
+                bomb.y += bomb.speed * deltaTime;
 
                 if (bomb.y + bomb.height > canvas.height - groundHeight) {
                     createExplosion(bomb.x + bomb.width / 2, bomb.y + bomb.height / 2, 'bomb');
@@ -432,16 +373,14 @@
             }
         }
 
-
-        function updateShooters() {
+        function updateShooters(deltaTime) {
             shooters.forEach(shooter => {
-                shooter.fireCooldown--;
+                shooter.fireCooldown -= deltaTime;
                 if (shooter.fireCooldown <= 0) {
                     bullets.push({
                         x: shooter.x + shooter.width / 2 - 5,
                         y: shooter.y,
-                        width: 10,
-                        height: 20,
+                        width: 10, height: 20,
                         speed: shooter.bulletSpeed,
                         color: '#f43f5e'
                     });
@@ -450,9 +389,9 @@
             });
         }
         
-        function updateBullets() {
+        function updateBullets(deltaTime) {
             bullets.forEach((bullet, index) => {
-                bullet.y -= bullet.speed;
+                bullet.y -= bullet.speed * deltaTime;
                 if (bullet.y < 0) {
                     bullets.splice(index, 1);
                 }
@@ -461,13 +400,12 @@
         
         function updateCamera() {
             const targetCameraX = player.x - canvas.width / 2 + player.width / 2;
-            
             camera.x = Math.max(0, Math.min(targetCameraX, worldWidth - canvas.width));
         }
         
         function drawPlayer() {
             if (player.isDying) return;
-            if(player.invincible && Math.floor(player.invincibilityTimer / 5) % 2 === 0) {
+            if(player.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
                 return;
             }
             ctx.fillStyle = player.color;
@@ -520,10 +458,10 @@
                 particles.push({
                     x: x + (Math.random() - 0.5) * player.width,
                     y: y,
-                    dx: (Math.random() - 0.5) * 1,
-                    dy: -(Math.random() * 2 + 1),
+                    dx: (Math.random() - 0.5) * 20,
+                    dy: -(Math.random() * 120 + 60),
                     size: Math.random() * 6 + 4,
-                    life: 40,
+                    life: 0.7, // seconds
                     color: `rgba(255, ${Math.random() * 100 + 100}, 0, 0.8)`,
                     isFire: true
                 });
@@ -535,12 +473,11 @@
                 const particleCount = 30;
                 for (let i = 0; i < particleCount; i++) {
                     particles.push({
-                        x: x,
-                        y: y,
-                        dx: (Math.random() - 0.5) * (Math.random() * 10),
-                        dy: (Math.random() - 0.5) * (Math.random() * 10),
+                        x: x, y: y,
+                        dx: (Math.random() - 0.5) * 600,
+                        dy: (Math.random() - 0.5) * 600,
                         size: Math.random() * 5 + 2,
-                        life: 60,
+                        life: 1.0,
                         color: `rgba(255, ${Math.random() * 155 + 100}, 0, ${Math.random() * 0.5 + 0.5})`,
                     });
                 }
@@ -550,12 +487,11 @@
             const bloodCount = 100;
             for (let i = 0; i < bloodCount; i++) {
                 particles.push({
-                    x: x,
-                    y: y,
-                    dx: (Math.random() - 0.5) * (Math.random() * 15),
-                    dy: (Math.random() - 0.5) * (Math.random() * 15),
+                    x: x, y: y,
+                    dx: (Math.random() - 0.5) * 900,
+                    dy: (Math.random() - 0.5) * 900,
                     size: Math.random() * 4 + 1,
-                    life: 80,
+                    life: 1.33,
                     color: `rgba(${150 + Math.random() * 50}, 0, 0, ${Math.random() * 0.5 + 0.5})`,
                     isBlood: true
                 });
@@ -564,35 +500,34 @@
             const partCount = 5;
             for (let i = 0; i < partCount; i++) {
                 particles.push({
-                    x: x,
-                    y: y,
-                    dx: (Math.random() - 0.5) * 8,
-                    dy: (Math.random() - 0.5) * 10 - 5,
+                    x: x, y: y,
+                    dx: (Math.random() - 0.5) * 480,
+                    dy: (Math.random() - 0.5) * 600 - 300,
                     width: Math.random() * 15 + 10,
                     height: Math.random() * 15 + 10,
-                    life: 120,
+                    life: 2.0,
                     color: player.color,
                     isBlood: false
                 });
             }
         }
 
-        function updateParticles() {
+        function updateParticles(deltaTime) {
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 
                  if (p.isFire) {
-                    p.x += p.dx;
-                    p.y += p.dy;
-                    p.size *= 0.95;
+                    p.x += p.dx * deltaTime;
+                    p.y += p.dy * deltaTime;
+                    p.size *= (1 - deltaTime);
                 } else if (p.isBlood) {
-                    p.dy += gravity * 0.2;
-                    p.x += p.dx;
-                    p.y += p.dy;
+                    p.dy += player.gravity * 0.2 * deltaTime;
+                    p.x += p.dx * deltaTime;
+                    p.y += p.dy * deltaTime;
                 } else {
-                    p.dy += gravity;
-                    p.x += p.dx;
-                    p.y += p.dy;
+                    p.dy += player.gravity * deltaTime;
+                    p.x += p.dx * deltaTime;
+                    p.y += p.dy * deltaTime;
                     if (p.y + (p.height || p.size) > canvas.height - groundHeight) {
                          p.y = canvas.height - groundHeight - (p.height || p.size);
                          p.dy *= -0.4;
@@ -600,7 +535,7 @@
                     }
                 }
 
-                p.life--;
+                p.life -= deltaTime;
 
                 if (p.life <= 0 || p.size < 0.5) {
                     particles.splice(i, 1);
@@ -624,20 +559,19 @@
         
         function createPowerUpEffect(x, y) {
              powerUpEffects.push({
-                x: x,
-                y: y,
+                x: x, y: y,
                 radius: 0,
                 maxRadius: 100,
                 opacity: 1,
-                life: 30
+                life: 0.5 // seconds
              });
         }
         
-        function updatePowerUpEffects() {
+        function updatePowerUpEffects(deltaTime) {
             for (let i = powerUpEffects.length - 1; i >= 0; i--) {
                 const effect = powerUpEffects[i];
-                effect.radius += effect.maxRadius / effect.life;
-                effect.opacity -= 1 / effect.life;
+                effect.radius += (effect.maxRadius / effect.life) * deltaTime;
+                effect.opacity -= (1 / effect.life) * deltaTime;
                  if (effect.opacity <= 0) {
                     powerUpEffects.splice(i, 1);
                 }
@@ -653,7 +587,6 @@
                 ctx.stroke();
             });
         }
-
 
         function checkCollisions() {
             for (let i = bombs.length - 1; i >= 0; i--) {
@@ -702,7 +635,7 @@
             player.hp -= amount;
             hpDisplay.textContent = Math.max(0, player.hp);
             player.invincible = true;
-            player.invincibilityTimer = 90;
+            player.invincibilityTimer = 1.5; // seconds
             if (player.hp <= 0) {
                 startDeathSequence("You ran out of health!");
             }
@@ -772,23 +705,31 @@
         }
 
 
-        function gameLoop() {
-            if (isPaused || !animationFrameId) return;
+        function gameLoop(timestamp) {
+            if (!animationFrameId) return;
+
+            const deltaTime = Math.min((timestamp - lastTime) / 1000, 0.1); // convert to seconds and cap at 0.1
+            lastTime = timestamp;
+
+            if (isPaused) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
             
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (!isGameOver && !isCountingDown) {
-                updatePlayer();
-                updateShooters();
-                updateBullets();
-                updateBombs();
+                updatePlayer(deltaTime);
+                updateShooters(deltaTime);
+                updateBullets(deltaTime);
+                updateBombs(deltaTime);
                 updateCamera();
                 checkCollisions();
             } else if (player.isDying) {
-                updateParticles();
+                updateParticles(deltaTime);
             }
             
-            updatePowerUpEffects();
+            updatePowerUpEffects(deltaTime);
 
             drawBackground();
             drawShooters();
@@ -848,7 +789,10 @@
             currentLevel = level;
             initializeGame(level);
             updateUI('playing');
-            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            lastTime = performance.now();
             animationFrameId = requestAnimationFrame(gameLoop);
             startCountdown();
         }
@@ -863,6 +807,7 @@
             if (isGameOver) return;
             isPaused = false;
             updateUI('playing');
+            lastTime = performance.now();
             requestAnimationFrame(gameLoop);
         }
 
@@ -896,26 +841,11 @@
         
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
-
-        leftButton.addEventListener('touchstart', (e) => { if (isCountingDown) return; e.preventDefault(); keys.left = true; }, { passive: false });
-        leftButton.addEventListener('touchend', (e) => { if (isCountingDown) return; e.preventDefault(); keys.left = false; }, { passive: false });
-        
-        rightButton.addEventListener('touchstart', (e) => { if (isCountingDown) return; e.preventDefault(); keys.right = true; }, { passive: false });
-        rightButton.addEventListener('touchend', (e) => { if (isCountingDown) return; e.preventDefault(); keys.right = false; }, { passive: false });
-
-        jumpButton.addEventListener('touchstart', (e) => {
-            if (isCountingDown) return;
-            e.preventDefault();
-            if (!player.isJumping) {
-                player.isJumping = true;
-                player.dy = -player.jumpStrength;
-            }
-        }, { passive: false });
         
         function resizeCanvas() {
             const container = document.getElementById('gameContainer');
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
+            canvas.width = 1280;
+            canvas.height = 720;
             
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
