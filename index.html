@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Gate Runner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background: #0f172a;
+            background: linear-gradient(to bottom right, #0f172a, #1e293b);
+            overflow: hidden;
+            -webkit-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #38bdf8, #7dd3fc);
+            display: block;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+        .game-ui-button {
+            transition: all 0.2s ease-in-out;
+        }
+        .game-ui-button:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+        .game-ui-button:active {
+            transform: translateY(0px) scale(1);
+        }
+        .text-glow {
+            text-shadow:
+                0 0 5px rgba(56, 189, 248, 0.8),
+                0 0 10px rgba(56, 189, 248, 0.6),
+                0 0 20px rgba(56, 189, 248, 0.4);
+        }
+        .modal-base {
+            background-color: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 0.75rem;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.2);
+        }
+        #mobileControls {
+            display: none;
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 30;
+        }
+        @media (max-width: 768px) {
+            #mobileControls {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+        }
+        .mobile-btn {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            color: white;
+            border: 2px solid rgba(56, 189, 248, 0.4);
+            border-radius: 50%;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .level-select-btn {
+            width: 80px;
+            height: 80px;
+            font-size: 2rem;
+            border-radius: 0.5rem;
+            color: #ffffff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen m-0">
+
+    <div id="gameWrapper" class="w-full h-full flex items-center justify-center p-4">
+        <div id="gameContainer" class="relative w-full max-w-5xl" style="aspect-ratio: 16 / 9;">
+
+            <div class="absolute top-4 left-4 right-4 z-10 flex justify-between items-center text-lg hidden" id="gameUI">
+                <div class="p-3 rounded-lg shadow-lg" style="background-color: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); border: 1px solid rgba(56, 189, 248, 0.2);">
+                    <div class="flex space-x-4">
+                        <span>HP: <span id="hpDisplay">100</span></span>
+                        <span id="levelDisplay">Level: 1</span>
+                    </div>
+                    <div id="powerupIndicator" class="hidden text-cyan-400 font-bold mt-2 text-sm">POWER-UP READY! (↓)</div>
+                </div>
+                <button id="pauseButton" class="bg-yellow-500 text-gray-900 px-6 py-3 rounded-lg shadow-md game-ui-button">Stop</button>
+            </div>
+
+            <canvas id="gameCanvas" style="width: 100%; height: 100%;"></canvas>
+
+            <div id="startScreen" class="absolute inset-0 flex flex-col items-center justify-center z-20 modal-base p-4">
+                <h1 class="text-6xl mb-4 text-cyan-400 text-glow">Gate Runner</h1>
+                <p class="text-xl mb-8">A sacrifice must be made to proceed.</p>
+                <button id="startButton" class="bg-green-500 text-gray-900 px-10 py-5 rounded-lg text-2xl shadow-lg game-ui-button">Start Game</button>
+                <footer class="absolute bottom-6 text-sm text-slate-400">
+                    Made with Fun and Efforts
+                </footer>
+            </div>
+
+            <div id="rulesScreen" class="absolute inset-0 p-8 flex-col items-center justify-center z-20 modal-base hidden">
+                <h2 class="text-4xl mb-6 text-cyan-400 text-glow">How to Play</h2>
+                <div class="text-left max-w-2xl text-base space-y-4">
+                    <p><strong class="text-yellow-400">Objective:</strong> Reach the final green gate to complete the level.</p>
+                    <p><strong class="text-yellow-400">Controls:</strong> Use <strong class="text-white">←→</strong> to run and <strong class="text-white">↑</strong> or <strong class="text-white">Spacebar</strong> to jump.</p>
+                    <p><strong class="text-yellow-400">Health:</strong> You lose HP from bullets (-20), bombs (-30), orange gates (-20), and standing still for 1 second (-20).</p>
+                    <p><strong class="text-yellow-400">Power-Up:</strong> After passing an orange gate, press <strong class="text-white">↓</strong> to teleport past the next one. This is a sacrifice that sets your HP to 30. Using it with less than 30 HP is fatal!</p>
+                </div>
+                <button id="playButton" class="bg-blue-500 text-gray-900 px-10 py-5 rounded-lg text-2xl shadow-lg game-ui-button mt-8">Let's Go!</button>
+            </div>
+
+            <div id="levelSelectionScreen" class="absolute inset-0 flex-col items-center justify-center z-20 modal-base p-4 hidden">
+                <h2 class="text-5xl mb-8 text-blue-400 text-glow">Select a Level</h2>
+                <div class="grid grid-cols-5 gap-4 mb-8">
+                    <button class="level-select-btn game-ui-button bg-green-500" data-level="1">1</button>
+                    <button class="level-select-btn game-ui-button bg-yellow-500" data-level="2">2</button>
+                    <button class="level-select-btn game-ui-button bg-orange-500" data-level="3">3</button>
+                    <button class="level-select-btn game-ui-button bg-red-500" data-level="4">4</button>
+                    <button class="level-select-btn game-ui-button bg-purple-700" data-level="5">5</button>
+                </div>
+                <button id="backButton" class="bg-gray-500 text-gray-900 px-8 py-4 rounded-lg text-xl shadow-lg game-ui-button">Back</button>
+            </div>
+
+            <div id="pauseScreen" class="absolute inset-0 flex-col items-center justify-center z-20 modal-base p-4 hidden">
+                <h2 class="text-5xl mb-8 text-yellow-400 text-glow">Paused</h2>
+                <div class="flex flex-col items-center">
+                    <button id="resumeButton" class="bg-blue-500 text-gray-900 px-10 py-5 rounded-lg text-2xl shadow-lg game-ui-button mb-6">Resume</button>
+                    <button id="selectLevelButton" class="bg-gray-500 text-gray-900 px-8 py-4 rounded-lg text-xl shadow-lg game-ui-button">Select Level</button>
+                </div>
+            </div>
+
+            <div id="levelCompleteScreen" class="absolute inset-0 flex-col items-center justify-center z-20 modal-base p-4 hidden">
+                <h2 id="levelCompleteTitle" class="text-5xl mb-4 text-green-400 text-glow">Level Complete!</h2>
+                <p class="text-xl mb-8">The next sacrifice awaits.</p>
+                <button id="nextLevelButton" class="bg-blue-500 text-gray-900 px-10 py-5 rounded-lg text-2xl shadow-lg game-ui-button">Next Level</button>
+            </div>
+            
+            <div id="gameOverScreen" class="absolute inset-0 flex-col items-center justify-center z-20 modal-base p-4 hidden">
+                <h2 class="text-5xl mb-4 text-red-500 text-glow">Game Over</h2>
+                <p class="text-xl mb-8" id="gameOverMessage"></p>
+                <button id="restartButton" class="bg-green-500 text-gray-900 px-10 py-5 rounded-lg text-2xl shadow-lg game-ui-button">Play Again</button>
+            </div>
+
+            <div id="countdownDisplay" class="absolute inset-0 flex items-center justify-center text-9xl text-white font-bold z-30 hidden" style="text-shadow: 4px 4px 8px rgba(0,0,0,0.6);"></div>
+
+            <div id="mobileControls">
+                <button id="leftButton" class="mobile-btn">&#9664;</button>
+                <button id="jumpButton" class="mobile-btn">&#9650;</button>
+                <button id="rightButton" class="mobile-btn">&#9654;</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script type="module">
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const startScreen = document.getElementById('startScreen');
+        const rulesScreen = document.getElementById('rulesScreen');
+        const pauseScreen = document.getElementById('pauseScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const levelSelectionScreen = document.getElementById('levelSelectionScreen');
+        const levelCompleteScreen = document.getElementById('levelCompleteScreen');
+        const levelCompleteTitle = document.getElementById('levelCompleteTitle');
+        const gameUI = document.getElementById('gameUI');
+        const hpDisplay = document.getElementById('hpDisplay');
+        const levelDisplay = document.getElementById('levelDisplay');
+        const countdownDisplay = document.getElementById('countdownDisplay');
+        const startButton = document.getElementById('startButton');
+        const playButton = document.getElementById('playButton');
+        const backButton = document.getElementById('backButton');
+        const pauseButton = document.getElementById('pauseButton');
+        const resumeButton = document.getElementById('resumeButton');
+        const selectLevelButton = document.getElementById('selectLevelButton');
+        const restartButton = document.getElementById('restartButton');
+        const nextLevelButton = document.getElementById('nextLevelButton');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const leftButton = document.getElementById('leftButton');
+        const rightButton = document.getElementById('rightButton');
+        const jumpButton = document.getElementById('jumpButton');
+
+        let isPaused = false;
+        let isGameOver = false;
+        let isCountingDown = false;
+        let animationFrameId;
+        let gameOverReason = "";
+        let currentLevel = 1;
+        const maxLevels = 5;
+
+        let gravity = 0.5;
+        let groundHeight = 50;
+        let worldWidth = 5000;
+
+        let player, shooters, bullets, gates, camera, particles, powerUpEffects, bombs, bombSpawner;
+
+        function initializeGame(level) {
+            levelDisplay.textContent = `Level: ${level}`;
+
+            let levelConfig = {};
+            switch (level) {
+                case 1:
+                    levelConfig = {
+                        worldWidth: 5000,
+                        shooterPositions: [600, 1200, 1800, 2800, 3300, 4000, 4400],
+                        startFireRate: 120,
+                        endFireRate: 80,
+                        bulletSpeed: 8,
+                        bombSpawnRate: 200,
+                        bombSpeed: 5
+                    };
+                    break;
+                case 2:
+                    levelConfig = {
+                        worldWidth: 6000,
+                        shooterPositions: [500, 900, 1300, 1800, 2400, 3000, 3600, 4200, 5000, 5500],
+                        startFireRate: 95,
+                        endFireRate: 50,
+                        bulletSpeed: 9,
+                        bombSpawnRate: 140,
+                        bombSpeed: 6
+                    };
+                    break;
+                case 3:
+                    levelConfig = {
+                        worldWidth: 7500,
+                        shooterPositions: [400, 700, 1000, 1400, 1800, 2300, 2800, 3300, 3900, 4500, 5200, 6000, 6500, 7000],
+                        startFireRate: 90,
+                        endFireRate: 32,
+                        bulletSpeed: 10,
+                        bombSpawnRate: 100,
+                        bombSpeed: 7
+                    };
+                    break;
+                case 4:
+                    levelConfig = {
+                        worldWidth: 9000,
+                        shooterPositions: [400, 650, 900, 1200, 1500, 1900, 2400, 2900, 3500, 4100, 4800, 5500, 6200, 6800, 7400, 8000, 8500],
+                        startFireRate: 80,
+                        endFireRate: 25,
+                        bulletSpeed: 11.5,
+                        bombSpawnRate: 75,
+                        bombSpeed: 8.5
+                    };
+                    break;
+                case 5:
+                    levelConfig = {
+                        worldWidth: 12000,
+                        shooterPositions: [300, 500, 700, 950, 1200, 1500, 1800, 2200, 2600, 3100, 3600, 4200, 4800, 5500, 6200, 7000, 7800, 8500, 9200, 10000, 11000],
+                        startFireRate: 70,
+                        endFireRate: 15,
+                        bulletSpeed: 14,
+                        bombSpawnRate: 45,
+                        bombSpeed: 10
+                    };
+                    break;
+            }
+            
+            worldWidth = levelConfig.worldWidth;
+
+            player = {
+                x: 50,
+                y: canvas.height - groundHeight,
+                width: 40,
+                height: 60,
+                speed: 5,
+                dx: 0,
+                dy: 0,
+                jumpStrength: 15,
+                isJumping: false,
+                hp: 100,
+                color: '#facc15',
+                invincible: false,
+                invincibilityTimer: 0,
+                canUsePowerUp: false,
+                isDying: false,
+                idleTimer: 0,
+                lastX: 50
+            };
+
+            camera = {
+                x: 0,
+                y: 0,
+                width: canvas.width,
+                height: canvas.height,
+            };
+
+            const startPos = levelConfig.shooterPositions[0];
+            const endPos = levelConfig.shooterPositions[levelConfig.shooterPositions.length - 1];
+
+            shooters = levelConfig.shooterPositions.map(posX => {
+                const positionRatio = (posX - startPos) / (endPos - startPos);
+                const fireRate = levelConfig.startFireRate - positionRatio * (levelConfig.startFireRate - levelConfig.endFireRate);
+                return {
+                    x: posX,
+                    y: canvas.height - groundHeight,
+                    width: 50,
+                    height: 40,
+                    color: '#be123c',
+                    fireCooldown: 0,
+                    fireRate: Math.round(fireRate),
+                    bulletSpeed: levelConfig.bulletSpeed
+                };
+            });
+
+            bullets = [];
+            particles = [];
+            powerUpEffects = [];
+            bombs = [];
+            bombSpawner = {
+                cooldown: levelConfig.bombSpawnRate,
+                spawnRate: levelConfig.bombSpawnRate,
+                speed: levelConfig.bombSpeed
+            };
+            
+            gates = [
+                { x: worldWidth * 0.45, width: 20, color: '#eab308', type: 'penalty', crossed: false },
+                { x: worldWidth * 0.75, width: 20, color: '#eab308', type: 'penalty', crossed: false },
+                { x: worldWidth - 100, width: 40, color: '#84cc16', type: 'finish', crossed: false },
+            ];
+            
+            isPaused = false;
+            isGameOver = false;
+            hpDisplay.textContent = player.hp;
+            document.getElementById('powerupIndicator').classList.add('hidden');
+        }
+
+        const keys = {
+            right: false,
+            left: false,
+            up: false
+        };
+
+        function handleKeyDown(e) {
+            if (isCountingDown) return;
+            if (e.code === 'ArrowRight') keys.right = true;
+            if (e.code === 'ArrowLeft') keys.left = true;
+            if ((e.code === 'ArrowUp' || e.code === 'Space') && !player.isJumping) {
+                player.isJumping = true;
+                player.dy = -player.jumpStrength;
+            }
+            if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                usePowerUp();
+            }
+        }
+
+        function handleKeyUp(e) {
+            if (isCountingDown) return;
+            if (e.code === 'ArrowRight') keys.right = false;
+            if (e.code === 'ArrowLeft') keys.left = false;
+        }
+
+        function updatePlayer() {
+            if (Math.abs(player.x - player.lastX) < 0.1 && !player.isJumping) {
+                player.idleTimer++;
+            } else {
+                player.idleTimer = 0;
+            }
+            player.lastX = player.x;
+
+            if (player.idleTimer > 60 && player.idleTimer % 60 === 1) {
+                takeDamage(20);
+            }
+            if (player.idleTimer > 60 && player.idleTimer % 5 === 0) {
+                 createFireEffect(player.x + player.width / 2, player.y + player.height);
+            }
+
+            if (keys.right) player.x += player.speed;
+            if (keys.left) player.x -= player.speed;
+            
+            player.dy += gravity;
+            player.y += player.dy;
+
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > worldWidth) {
+                 player.x = worldWidth - player.width;
+            }
+
+            if (player.y + player.height > canvas.height - groundHeight) {
+                player.y = canvas.height - groundHeight - player.height;
+                player.dy = 0;
+                player.isJumping = false;
+            }
+            
+            if(player.invincible) {
+                player.invincibilityTimer--;
+                if(player.invincibilityTimer <= 0) {
+                    player.invincible = false;
+                }
+            }
+        }
+        
+        function updateBombs() {
+            bombSpawner.cooldown--;
+            if (bombSpawner.cooldown <= 0) {
+                bombs.push({
+                    x: camera.x + Math.random() * canvas.width,
+                    y: -20,
+                    width: 20,
+                    height: 20,
+                    speed: bombSpawner.speed,
+                    color: '#1f2937'
+                });
+                bombSpawner.cooldown = bombSpawner.spawnRate;
+            }
+
+            for (let i = bombs.length - 1; i >= 0; i--) {
+                const bomb = bombs[i];
+                bomb.y += bomb.speed;
+
+                if (bomb.y + bomb.height > canvas.height - groundHeight) {
+                    createExplosion(bomb.x + bomb.width / 2, bomb.y + bomb.height / 2, 'bomb');
+                    bombs.splice(i, 1);
+                }
+            }
+        }
+
+
+        function updateShooters() {
+            shooters.forEach(shooter => {
+                shooter.fireCooldown--;
+                if (shooter.fireCooldown <= 0) {
+                    bullets.push({
+                        x: shooter.x + shooter.width / 2 - 5,
+                        y: shooter.y,
+                        width: 10,
+                        height: 20,
+                        speed: shooter.bulletSpeed,
+                        color: '#f43f5e'
+                    });
+                    shooter.fireCooldown = shooter.fireRate;
+                }
+            });
+        }
+        
+        function updateBullets() {
+            bullets.forEach((bullet, index) => {
+                bullet.y -= bullet.speed;
+                if (bullet.y < 0) {
+                    bullets.splice(index, 1);
+                }
+            });
+        }
+        
+        function updateCamera() {
+            const targetCameraX = player.x - canvas.width / 2 + player.width / 2;
+            
+            camera.x = Math.max(0, Math.min(targetCameraX, worldWidth - canvas.width));
+        }
+        
+        function drawPlayer() {
+            if (player.isDying) return;
+            if(player.invincible && Math.floor(player.invincibilityTimer / 5) % 2 === 0) {
+                return;
+            }
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x - camera.x, player.y, player.width, player.height);
+        }
+
+        function drawShooters() {
+            shooters.forEach(shooter => {
+                ctx.fillStyle = shooter.color;
+                ctx.fillRect(shooter.x - camera.x, shooter.y, shooter.width, shooter.height);
+            });
+        }
+
+        function drawBullets() {
+            bullets.forEach(bullet => {
+                ctx.fillStyle = bullet.color;
+                ctx.fillRect(bullet.x - camera.x, bullet.y, bullet.width, bullet.height);
+            });
+        }
+        
+        function drawBombs() {
+            bombs.forEach(bomb => {
+                ctx.fillStyle = bomb.color;
+                ctx.beginPath();
+                ctx.arc(bomb.x - camera.x + bomb.width / 2, bomb.y + bomb.height / 2, bomb.width / 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#fde047';
+                ctx.beginPath();
+                ctx.arc(bomb.x - camera.x + bomb.width / 2, bomb.y + bomb.height / 2, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+        
+        function drawGates() {
+            gates.forEach(gate => {
+                ctx.fillStyle = gate.crossed ? '#475569' : gate.color;
+                ctx.fillRect(gate.x - camera.x, 0, gate.width, canvas.height - groundHeight);
+            });
+        }
+
+        function drawBackground() {
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
+        }
+
+        function createFireEffect(x, y) {
+            const particleCount = 5;
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * player.width,
+                    y: y,
+                    dx: (Math.random() - 0.5) * 1,
+                    dy: -(Math.random() * 2 + 1),
+                    size: Math.random() * 6 + 4,
+                    life: 40,
+                    color: `rgba(255, ${Math.random() * 100 + 100}, 0, 0.8)`,
+                    isFire: true
+                });
+            }
+        }
+
+        function createExplosion(x, y, type = 'player') {
+            if (type === 'bomb') {
+                const particleCount = 30;
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push({
+                        x: x,
+                        y: y,
+                        dx: (Math.random() - 0.5) * (Math.random() * 10),
+                        dy: (Math.random() - 0.5) * (Math.random() * 10),
+                        size: Math.random() * 5 + 2,
+                        life: 60,
+                        color: `rgba(255, ${Math.random() * 155 + 100}, 0, ${Math.random() * 0.5 + 0.5})`,
+                    });
+                }
+                return;
+            }
+            
+            const bloodCount = 100;
+            for (let i = 0; i < bloodCount; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    dx: (Math.random() - 0.5) * (Math.random() * 15),
+                    dy: (Math.random() - 0.5) * (Math.random() * 15),
+                    size: Math.random() * 4 + 1,
+                    life: 80,
+                    color: `rgba(${150 + Math.random() * 50}, 0, 0, ${Math.random() * 0.5 + 0.5})`,
+                    isBlood: true
+                });
+            }
+
+            const partCount = 5;
+            for (let i = 0; i < partCount; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    dx: (Math.random() - 0.5) * 8,
+                    dy: (Math.random() - 0.5) * 10 - 5,
+                    width: Math.random() * 15 + 10,
+                    height: Math.random() * 15 + 10,
+                    life: 120,
+                    color: player.color,
+                    isBlood: false
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                
+                 if (p.isFire) {
+                    p.x += p.dx;
+                    p.y += p.dy;
+                    p.size *= 0.95;
+                } else if (p.isBlood) {
+                    p.dy += gravity * 0.2;
+                    p.x += p.dx;
+                    p.y += p.dy;
+                } else {
+                    p.dy += gravity;
+                    p.x += p.dx;
+                    p.y += p.dy;
+                    if (p.y + (p.height || p.size) > canvas.height - groundHeight) {
+                         p.y = canvas.height - groundHeight - (p.height || p.size);
+                         p.dy *= -0.4;
+                         p.dx *= 0.8; 
+                    }
+                }
+
+                p.life--;
+
+                if (p.life <= 0 || p.size < 0.5) {
+                    particles.splice(i, 1);
+                }
+            }
+            if (particles.length === 0 && player.isDying) {
+                finishGame(false, gameOverReason);
+            }
+        }
+        
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                if (p.isBlood || p.isFire) {
+                    ctx.fillRect(p.x - camera.x, p.y, p.size, p.size);
+                } else {
+                    ctx.fillRect(p.x - camera.x, p.y, p.width || p.size, p.height || p.size);
+                }
+            });
+        }
+        
+        function createPowerUpEffect(x, y) {
+             powerUpEffects.push({
+                x: x,
+                y: y,
+                radius: 0,
+                maxRadius: 100,
+                opacity: 1,
+                life: 30
+             });
+        }
+        
+        function updatePowerUpEffects() {
+            for (let i = powerUpEffects.length - 1; i >= 0; i--) {
+                const effect = powerUpEffects[i];
+                effect.radius += effect.maxRadius / effect.life;
+                effect.opacity -= 1 / effect.life;
+                 if (effect.opacity <= 0) {
+                    powerUpEffects.splice(i, 1);
+                }
+            }
+        }
+
+        function drawPowerUpEffects() {
+            powerUpEffects.forEach(effect => {
+                ctx.beginPath();
+                ctx.arc(effect.x - camera.x, effect.y, effect.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(59, 130, 246, ${effect.opacity})`;
+                ctx.lineWidth = 5;
+                ctx.stroke();
+            });
+        }
+
+
+        function checkCollisions() {
+            for (let i = bombs.length - 1; i >= 0; i--) {
+                const bomb = bombs[i];
+                const dist = Math.hypot(player.x + player.width / 2 - (bomb.x + bomb.width/2), player.y + player.height / 2 - (bomb.y + bomb.height/2));
+                if (!player.invincible && dist < player.width / 2 + bomb.width / 2) {
+                    createExplosion(bomb.x + bomb.width / 2, bomb.y + bomb.height / 2, 'bomb');
+                    bombs.splice(i, 1);
+                    takeDamage(30);
+                    return;
+                }
+            }
+            
+            bullets.forEach((bullet, index) => {
+                if (!player.invincible &&
+                    player.x < bullet.x + bullet.width &&
+                    player.x + player.width > bullet.x &&
+                    player.y < bullet.y + bullet.height &&
+                    player.y + player.height > bullet.y
+                ) {
+                    bullets.splice(index, 1);
+                    takeDamage(20);
+                }
+            });
+            
+            gates.forEach(gate => {
+                if (!gate.crossed && player.x > gate.x + gate.width) {
+                    gate.crossed = true;
+                    if(gate.type === 'penalty') {
+                        takeDamage(20);
+                        player.canUsePowerUp = true;
+                        document.getElementById('powerupIndicator').classList.remove('hidden');
+                    } else if (gate.type === 'finish') {
+                        if (currentLevel < maxLevels) {
+                            levelUp();
+                        } else {
+                            finishGame(true, "You've made the final sacrifice!");
+                        }
+                    }
+                }
+            });
+        }
+
+        function takeDamage(amount) {
+            if (player.invincible) return;
+            player.hp -= amount;
+            hpDisplay.textContent = Math.max(0, player.hp);
+            player.invincible = true;
+            player.invincibilityTimer = 90;
+            if (player.hp <= 0) {
+                startDeathSequence("You ran out of health!");
+            }
+        }
+        
+        function usePowerUp() {
+            if (!player.canUsePowerUp || player.isDying) return;
+
+            if (player.hp < 30) {
+                startDeathSequence("Power-up cost was too high!");
+                return;
+            }
+            
+            const nextGate = gates.find(g => !g.crossed && g.type === 'penalty');
+            
+            if (nextGate) {
+                 createPowerUpEffect(player.x + player.width/2, player.y + player.height/2);
+                 player.hp = 30;
+                 hpDisplay.textContent = player.hp;
+                 player.x = nextGate.x + nextGate.width + 10;
+                 nextGate.crossed = true;
+                 player.canUsePowerUp = false;
+                 document.getElementById('powerupIndicator').classList.add('hidden');
+                 createPowerUpEffect(player.x + player.width/2, player.y + player.height/2);
+
+            }
+        }
+
+        function startDeathSequence(message) {
+            if (player.isDying) return;
+            player.isDying = true;
+            isGameOver = true;
+            gameOverReason = message;
+            createExplosion(player.x + player.width / 2, player.y + player.height / 2, 'player');
+        }
+
+        function finishGame(isWin, message) {
+            if (currentLevel === maxLevels) {
+                isGameOver = true;
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+                updateUI('levelSelection');
+                return;
+            }
+
+            isGameOver = true;
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+            gameOverMessage.textContent = message;
+            if (isWin) {
+                gameOverMessage.classList.remove('text-red-500');
+                gameOverMessage.classList.add('text-green-400');
+            } else {
+                gameOverMessage.classList.remove('text-green-400');
+                gameOverMessage.classList.add('text-red-500');
+            }
+            updateUI('gameOver');
+        }
+
+        function levelUp() {
+            isGameOver = true;
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+            levelCompleteTitle.textContent = `Level ${currentLevel} Complete!`;
+            currentLevel++;
+            updateUI('levelComplete');
+        }
+
+
+        function gameLoop() {
+            if (isPaused || !animationFrameId) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!isGameOver && !isCountingDown) {
+                updatePlayer();
+                updateShooters();
+                updateBullets();
+                updateBombs();
+                updateCamera();
+                checkCollisions();
+            } else if (player.isDying) {
+                updateParticles();
+            }
+            
+            updatePowerUpEffects();
+
+            drawBackground();
+            drawShooters();
+            drawBullets();
+            drawBombs();
+            drawGates();
+            drawPlayer();
+            drawParticles();
+            drawPowerUpEffects();
+            
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function updateUI(state) {
+            startScreen.classList.toggle('hidden', state !== 'start');
+            startScreen.classList.toggle('flex', state === 'start');
+            
+            rulesScreen.classList.toggle('hidden', state !== 'rules');
+            rulesScreen.classList.toggle('flex', state === 'rules');
+
+            levelSelectionScreen.classList.toggle('hidden', state !== 'levelSelection');
+            levelSelectionScreen.classList.toggle('flex', state === 'levelSelection');
+
+            pauseScreen.classList.toggle('hidden', state !== 'paused');
+            pauseScreen.classList.toggle('flex', state === 'paused');
+
+            levelCompleteScreen.classList.toggle('hidden', state !== 'levelComplete');
+            levelCompleteScreen.classList.toggle('flex', state === 'levelComplete');
+            
+            gameOverScreen.classList.toggle('hidden', state !== 'gameOver');
+            gameOverScreen.classList.toggle('flex', state === 'gameOver');
+            
+            gameUI.classList.toggle('hidden', state === 'start' || state === 'rules' || state === 'gameOver' || state === 'levelComplete' || state === 'levelSelection');
+        }
+        
+        function startCountdown() {
+            let count = 3;
+            isCountingDown = true;
+            countdownDisplay.textContent = count;
+            countdownDisplay.classList.remove('hidden');
+
+            const countdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownDisplay.textContent = count;
+                } else if (count === 0) {
+                    countdownDisplay.textContent = 'Go!!!';
+                } else {
+                    clearInterval(countdownInterval);
+                    countdownDisplay.classList.add('hidden');
+                    isCountingDown = false;
+                }
+            }, 1000);
+        }
+
+        function startGame(level) {
+            currentLevel = level;
+            initializeGame(level);
+            updateUI('playing');
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = requestAnimationFrame(gameLoop);
+            startCountdown();
+        }
+        
+        function pauseGame() {
+            if (isGameOver || isCountingDown) return;
+            isPaused = true;
+            updateUI('paused');
+        }
+
+        function resumeGame() {
+            if (isGameOver) return;
+            isPaused = false;
+            updateUI('playing');
+            requestAnimationFrame(gameLoop);
+        }
+
+        startButton.addEventListener('click', () => updateUI('rules'));
+        playButton.addEventListener('click', () => updateUI('levelSelection'));
+        backButton.addEventListener('click', () => updateUI('rules'));
+
+        document.querySelectorAll('.level-select-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const level = parseInt(e.target.dataset.level);
+                startGame(level);
+            });
+        });
+        
+        selectLevelButton.addEventListener('click', () => {
+            isPaused = false;
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+            updateUI('levelSelection');
+        });
+
+        restartButton.addEventListener('click', () => startGame(currentLevel));
+        nextLevelButton.addEventListener('click', () => startGame(currentLevel));
+        
+        pauseButton.addEventListener('click', () => {
+            if(isPaused) resumeGame();
+            else pauseGame();
+        });
+
+        resumeButton.addEventListener('click', resumeGame);
+        
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+
+        leftButton.addEventListener('touchstart', (e) => { if (isCountingDown) return; e.preventDefault(); keys.left = true; }, { passive: false });
+        leftButton.addEventListener('touchend', (e) => { if (isCountingDown) return; e.preventDefault(); keys.left = false; }, { passive: false });
+        
+        rightButton.addEventListener('touchstart', (e) => { if (isCountingDown) return; e.preventDefault(); keys.right = true; }, { passive: false });
+        rightButton.addEventListener('touchend', (e) => { if (isCountingDown) return; e.preventDefault(); keys.right = false; }, { passive: false });
+
+        jumpButton.addEventListener('touchstart', (e) => {
+            if (isCountingDown) return;
+            e.preventDefault();
+            if (!player.isJumping) {
+                player.isJumping = true;
+                player.dy = -player.jumpStrength;
+            }
+        }, { passive: false });
+        
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+                updateUI('start');
+            }
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        updateUI('start');
+    </script>
+</body>
+</html>
+
